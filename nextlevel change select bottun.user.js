@@ -4,7 +4,7 @@
 // @version      1.0
 // @description  e-nextlevel.jpの絞り込みUIを一括表示可能なアコーディオン形式に変更
 // @author       You
-// @match        https://www.e-nextlevel.jp/work/*
+// @match        https://www.e-nextlevel.jp/work/search.*
 // @grant        none
 // @run-at       document-end
 // ==/UserScript==
