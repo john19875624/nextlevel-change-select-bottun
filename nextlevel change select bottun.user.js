@@ -1,10 +1,11 @@
 // ==UserScript==
-// @name         NEXTLEVEL絞り込み改善 - インラインアコーディオン
+// @name         NEXTLEVEL絞り込み改善 - インラインアコーディオン v2
 // @namespace    http://tampermonkey.net/
-// @version      1.0
-// @description  e-nextlevel.jpの絞り込みUIを一括表示可能なアコーディオン形式に変更
+// @version      2.0
+// @description  e-nextlevel.jpの絞り込みUIを一括表示可能なアコーディオン形式に変更（実際のページ構造に完全対応）
 // @author       You
-// @match        https://www.e-nextlevel.jp/work/list
+// @match        https://www.e-nextlevel.jp/work/list*
+// @match        https://www.e-nextlevel.jp/work/search*
 // @grant        none
 // @run-at       document-end
 // ==/UserScript==
@@ -12,58 +13,71 @@
 (function() {
     'use strict';
 
-    console.log('[NEXTLEVEL Filter] スクリプト開始');
+    console.log('[NEXTLEVEL Filter v2] スクリプト開始');
+    console.log('[NEXTLEVEL Filter v2] URL:', window.location.href);
 
     // ページ読み込み完了を待つ
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {
-        init();
+        setTimeout(init, 500);
     }
 
     function init() {
-        console.log('[NEXTLEVEL Filter] 初期化開始');
+        console.log('[NEXTLEVEL Filter v2] 初期化開始');
 
-        // 既存の絞り込みボタンエリアを検索
-        // txtファイルから推測されるセレクタ
-        const existingFilterBar = document.querySelector('.job-list__narrow-down-small') ||
-                                  document.querySelector('.container > div[class*="narrow-down"]');
+        // モーダルが存在するかチェック
+        const hasModals = checkForModals();
 
-        if (!existingFilterBar) {
-            console.warn('[NEXTLEVEL Filter] 絞り込みバーが見つかりません');
-            // フォールバック: ページ上部に挿入
-            insertFilterBar();
+        if (!hasModals) {
+            console.log('[NEXTLEVEL Filter v2] モーダル構造が見つかりません。スクリプトを終了します。');
             return;
         }
 
-        console.log('[NEXTLEVEL Filter] 既存の絞り込みバーを発見:', existingFilterBar);
+        console.log('[NEXTLEVEL Filter v2] モーダル構造を検出しました');
+
+        // 既存の絞り込みボタンエリアを検索
+        const existingFilterBar = document.querySelector('.job-list__narrow-down-small');
+
+        if (!existingFilterBar) {
+            console.warn('[NEXTLEVEL Filter v2] 絞り込みバーが見つかりません');
+            return;
+        }
+
+        console.log('[NEXTLEVEL Filter v2] 既存の絞り込みバーを発見:', existingFilterBar);
 
         // 既存のフィルターバーを置き換え
         replaceFilterBar(existingFilterBar);
     }
 
-    // 既存の絞り込みバーを置き換え
-    function replaceFilterBar(oldBar) {
-        // 新しいフィルターバーを作成
-        const newFilterBar = createFilterBar();
+    // モーダル構造の存在をチェック
+    function checkForModals() {
+        const conditions = [
+            document.querySelector('.js-modal__btn[data-modal]'),
+            document.querySelector('.js-modal__main[data-modal]'),
+            document.querySelector('[data-modal="timeslots"]'),
+            document.querySelector('.job-list__narrow-down-small')
+        ];
 
-        // 既存の要素を置き換え
-        oldBar.parentNode.replaceChild(newFilterBar, oldBar);
+        const hasModal = conditions.some(condition => condition !== null);
 
-        console.log('[NEXTLEVEL Filter] フィルターバーを置き換えました');
+        if (hasModal) {
+            console.log('[NEXTLEVEL Filter v2] モーダル検出:', {
+                'トリガーボタン': !!conditions[0],
+                'モーダルコンテンツ': !!conditions[1],
+                'data-modal属性': !!conditions[2],
+                '絞り込みバー': !!conditions[3]
+            });
+        }
 
-        // イベントリスナーを設定
-        initializeEventListeners();
+        return hasModal;
     }
 
-    // フォールバック: ページ上部に挿入
-    function insertFilterBar() {
+    // 既存の絞り込みバーを置き換え
+    function replaceFilterBar(oldBar) {
         const newFilterBar = createFilterBar();
-        const container = document.querySelector('.container') || document.body;
-        container.insertBefore(newFilterBar, container.firstChild);
-
-        console.log('[NEXTLEVEL Filter] フィルターバーを挿入しました');
-
+        oldBar.parentNode.replaceChild(newFilterBar, oldBar);
+        console.log('[NEXTLEVEL Filter v2] フィルターバーを置き換えました');
         initializeEventListeners();
     }
 
@@ -167,7 +181,7 @@
             }
 
             .nl-filter-content.active {
-                max-height: 1000px;
+                max-height: 800px;
                 transition: max-height 0.5s ease-in;
             }
 
@@ -178,13 +192,13 @@
             /* グリッドレイアウト */
             .nl-filter-grid {
                 display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-                gap: 24px;
+                grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+                gap: 20px;
             }
 
             @media (min-width: 768px) {
                 .nl-filter-grid {
-                    grid-template-columns: repeat(4, 1fr);
+                    grid-template-columns: repeat(3, 1fr);
                 }
             }
 
@@ -320,21 +334,13 @@
                 .nl-filter-grid {
                     grid-template-columns: 1fr;
                 }
-
-                .nl-filter-summary {
-                    font-size: 12px;
-                }
-
-                .nl-summary-item {
-                    padding: 4px 10px;
-                }
             }
         `;
         document.head.appendChild(style);
-        console.log('[NEXTLEVEL Filter] CSSを注入しました');
+        console.log('[NEXTLEVEL Filter v2] CSSを注入しました');
     }
 
-    // フィルターバーHTMLを作成
+    // フィルターバーHTMLを作成（実際のデータに基づく）
     function createFilterBar() {
         const div = document.createElement('div');
         div.className = 'nl-filter-bar';
@@ -343,16 +349,10 @@
                 <div class="nl-filter-icon">▼</div>
                 <div class="nl-filter-summary" id="nlFilterSummary">
                     <div class="nl-summary-item">
-                        <span>エリア</span>
+                        <span>時間帯</span>
                     </div>
                     <div class="nl-summary-item">
                         <span>仕事の形態</span>
-                    </div>
-                    <div class="nl-summary-item">
-                        <span>職種</span>
-                    </div>
-                    <div class="nl-summary-item">
-                        <span>時間帯</span>
                     </div>
                     <div class="nl-summary-item">
                         <span>並び順: 新着順</span>
@@ -362,91 +362,6 @@
             <div class="nl-filter-content" id="nlFilterContent">
                 <div class="nl-filter-content-inner">
                     <div class="nl-filter-grid">
-                        <!-- エリア -->
-                        <div class="nl-filter-group">
-                            <div class="nl-group-title">
-                                エリア
-                                <span class="nl-group-badge" style="display: none;">0</span>
-                            </div>
-                            <div class="nl-checkbox-list">
-                                <label class="nl-checkbox-item">
-                                    <input type="checkbox" name="site_pref[]" value="13">
-                                    <span class="nl-checkbox-custom"></span>
-                                    <span class="nl-checkbox-label">東京都</span>
-                                </label>
-                                <label class="nl-checkbox-item">
-                                    <input type="checkbox" name="site_pref[]" value="14">
-                                    <span class="nl-checkbox-custom"></span>
-                                    <span class="nl-checkbox-label">神奈川県</span>
-                                </label>
-                                <label class="nl-checkbox-item">
-                                    <input type="checkbox" name="site_pref[]" value="11">
-                                    <span class="nl-checkbox-custom"></span>
-                                    <span class="nl-checkbox-label">埼玉県</span>
-                                </label>
-                                <label class="nl-checkbox-item">
-                                    <input type="checkbox" name="site_pref[]" value="12">
-                                    <span class="nl-checkbox-custom"></span>
-                                    <span class="nl-checkbox-label">千葉県</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- 仕事の形態 -->
-                        <div class="nl-filter-group">
-                            <div class="nl-group-title">
-                                仕事の形態
-                                <span class="nl-group-badge" style="display: none;">0</span>
-                            </div>
-                            <div class="nl-checkbox-list">
-                                <label class="nl-checkbox-item">
-                                    <input type="checkbox" name="work_style[]" value="1">
-                                    <span class="nl-checkbox-custom"></span>
-                                    <span class="nl-checkbox-label">日雇い</span>
-                                </label>
-                                <label class="nl-checkbox-item">
-                                    <input type="checkbox" name="work_style[]" value="2">
-                                    <span class="nl-checkbox-custom"></span>
-                                    <span class="nl-checkbox-label">短期</span>
-                                </label>
-                                <label class="nl-checkbox-item">
-                                    <input type="checkbox" name="work_style[]" value="3">
-                                    <span class="nl-checkbox-custom"></span>
-                                    <span class="nl-checkbox-label">長期</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- 職種 -->
-                        <div class="nl-filter-group">
-                            <div class="nl-group-title">
-                                職種
-                                <span class="nl-group-badge" style="display: none;">0</span>
-                            </div>
-                            <div class="nl-checkbox-list">
-                                <label class="nl-checkbox-item">
-                                    <input type="checkbox" name="big_category[]" value="1">
-                                    <span class="nl-checkbox-custom"></span>
-                                    <span class="nl-checkbox-label">軽作業</span>
-                                </label>
-                                <label class="nl-checkbox-item">
-                                    <input type="checkbox" name="big_category[]" value="2">
-                                    <span class="nl-checkbox-custom"></span>
-                                    <span class="nl-checkbox-label">搬入・搬出</span>
-                                </label>
-                                <label class="nl-checkbox-item">
-                                    <input type="checkbox" name="big_category[]" value="3">
-                                    <span class="nl-checkbox-custom"></span>
-                                    <span class="nl-checkbox-label">イベント</span>
-                                </label>
-                                <label class="nl-checkbox-item">
-                                    <input type="checkbox" name="big_category[]" value="4">
-                                    <span class="nl-checkbox-custom"></span>
-                                    <span class="nl-checkbox-label">配送・ドライバー</span>
-                                </label>
-                            </div>
-                        </div>
-
                         <!-- 開始時間帯 -->
                         <div class="nl-filter-group">
                             <div class="nl-group-title">
@@ -477,57 +392,31 @@
                             </div>
                         </div>
 
-                        <!-- 勤務日数 -->
+                        <!-- 仕事の形態（ラジオボタン） -->
                         <div class="nl-filter-group">
                             <div class="nl-group-title">
-                                勤務日数
-                                <span class="nl-group-badge" style="display: none;">0</span>
+                                仕事の形態
                             </div>
                             <div class="nl-checkbox-list">
                                 <label class="nl-checkbox-item">
-                                    <input type="checkbox" name="work_days[]" value="1">
+                                    <input type="radio" name="work_style" value="0" checked>
                                     <span class="nl-checkbox-custom"></span>
-                                    <span class="nl-checkbox-label">1日のみ</span>
+                                    <span class="nl-checkbox-label">全て</span>
                                 </label>
                                 <label class="nl-checkbox-item">
-                                    <input type="checkbox" name="work_days[]" value="2">
+                                    <input type="radio" name="work_style" value="1">
                                     <span class="nl-checkbox-custom"></span>
-                                    <span class="nl-checkbox-label">週1日～</span>
+                                    <span class="nl-checkbox-label">スキマバイト</span>
                                 </label>
                                 <label class="nl-checkbox-item">
-                                    <input type="checkbox" name="work_days[]" value="3">
+                                    <input type="radio" name="work_style" value="2">
                                     <span class="nl-checkbox-custom"></span>
-                                    <span class="nl-checkbox-label">週2～3日</span>
+                                    <span class="nl-checkbox-label">シフトマッチ</span>
                                 </label>
                             </div>
                         </div>
 
-                        <!-- その他条件 -->
-                        <div class="nl-filter-group">
-                            <div class="nl-group-title">
-                                その他条件
-                                <span class="nl-group-badge" style="display: none;">0</span>
-                            </div>
-                            <div class="nl-checkbox-list">
-                                <label class="nl-checkbox-item">
-                                    <input type="checkbox" name="conditions[]" value="entry">
-                                    <span class="nl-checkbox-custom"></span>
-                                    <span class="nl-checkbox-label">エントリー可</span>
-                                </label>
-                                <label class="nl-checkbox-item">
-                                    <input type="checkbox" name="conditions[]" value="beginner">
-                                    <span class="nl-checkbox-custom"></span>
-                                    <span class="nl-checkbox-label">未経験OK</span>
-                                </label>
-                                <label class="nl-checkbox-item">
-                                    <input type="checkbox" name="conditions[]" value="high_pay">
-                                    <span class="nl-checkbox-custom"></span>
-                                    <span class="nl-checkbox-label">高時給</span>
-                                </label>
-                            </div>
-                        </div>
-
-                        <!-- 並び順 -->
+                        <!-- 並び順（ラジオボタン） -->
                         <div class="nl-filter-group">
                             <div class="nl-group-title">
                                 並び順
@@ -548,17 +437,6 @@
                                     <span class="nl-checkbox-custom"></span>
                                     <span class="nl-checkbox-label">時給高い順</span>
                                 </label>
-                            </div>
-                        </div>
-
-                        <!-- キーワード -->
-                        <div class="nl-filter-group">
-                            <div class="nl-group-title">
-                                キーワード
-                            </div>
-                            <div style="padding-top: 4px;">
-                                <input type="text" id="nlFreeWord" placeholder="例: 搬入"
-                                    style="width: 100%; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
                             </div>
                         </div>
                     </div>
@@ -582,7 +460,7 @@
         const resetBtn = document.getElementById('nlResetBtn');
 
         if (!trigger || !content) {
-            console.error('[NEXTLEVEL Filter] 必要な要素が見つかりません');
+            console.error('[NEXTLEVEL Filter v2] 必要な要素が見つかりません');
             return;
         }
 
@@ -620,7 +498,7 @@
         // 初期表示を更新
         updateDisplay();
 
-        console.log('[NEXTLEVEL Filter] イベントリスナーを設定しました');
+        console.log('[NEXTLEVEL Filter v2] イベントリスナーを設定しました');
     }
 
     // URLパラメータから選択状態を復元
@@ -635,16 +513,7 @@
             }
         });
 
-        // キーワードの復元
-        const freeWord = params.get('free_word');
-        if (freeWord) {
-            const input = document.getElementById('nlFreeWord');
-            if (input) {
-                input.value = freeWord;
-            }
-        }
-
-        console.log('[NEXTLEVEL Filter] URLから選択状態を復元しました');
+        console.log('[NEXTLEVEL Filter v2] URLから選択状態を復元しました');
     }
 
     // 表示を更新
@@ -674,38 +543,41 @@
 
     // サマリーを更新
     function updateSummary() {
-        const summaryItems = [
-            { name: 'エリア', selector: 'input[name="site_pref[]"]:checked' },
-            { name: '仕事の形態', selector: 'input[name="work_style[]"]:checked' },
-            { name: '職種', selector: 'input[name="big_category[]"]:checked' },
-            { name: '時間帯', selector: 'input[name="timeslots[]"]:checked' },
-        ];
+        const timeslotsChecked = document.querySelectorAll('.nl-checkbox-item input[name="timeslots[]"]:checked');
+        const workStyleChecked = document.querySelector('.nl-checkbox-item input[name="work_style"]:checked');
+        const sortByChecked = document.querySelector('.nl-checkbox-item input[name="select_sortby"]:checked');
 
         let summaryHTML = '';
 
-        summaryItems.forEach(item => {
-            const checked = document.querySelectorAll(`.nl-checkbox-item ${item.selector}`);
-            const count = checked.length;
+        // 時間帯
+        if (timeslotsChecked.length > 0) {
+            summaryHTML += `
+                <div class="nl-summary-item selected">
+                    <span>時間帯</span>
+                    <span class="nl-summary-badge">${timeslotsChecked.length}</span>
+                </div>
+            `;
+        } else {
+            summaryHTML += `<div class="nl-summary-item"><span>時間帯</span></div>`;
+        }
 
-            if (count > 0) {
-                summaryHTML += `
-                    <div class="nl-summary-item selected">
-                        <span>${item.name}</span>
-                        <span class="nl-summary-badge">${count}</span>
-                    </div>
-                `;
-            } else {
-                summaryHTML += `
-                    <div class="nl-summary-item">
-                        <span>${item.name}</span>
-                    </div>
-                `;
-            }
-        });
+        // 仕事の形態
+        const workStyleLabel = workStyleChecked ?
+            workStyleChecked.nextElementSibling.nextElementSibling.textContent : '全て';
+
+        if (workStyleLabel !== '全て') {
+            summaryHTML += `
+                <div class="nl-summary-item selected">
+                    <span>仕事の形態: ${workStyleLabel}</span>
+                </div>
+            `;
+        } else {
+            summaryHTML += `<div class="nl-summary-item"><span>仕事の形態</span></div>`;
+        }
 
         // 並び順
-        const sortBy = document.querySelector('.nl-checkbox-item input[name="select_sortby"]:checked');
-        const sortLabel = sortBy ? sortBy.nextElementSibling.nextElementSibling.textContent : '新着順';
+        const sortLabel = sortByChecked ?
+            sortByChecked.nextElementSibling.nextElementSibling.textContent : '新着順';
         summaryHTML += `
             <div class="nl-summary-item">
                 <span>並び順: ${sortLabel}</span>
@@ -722,7 +594,7 @@
     function applyFilters() {
         const params = new URLSearchParams();
 
-        // チェックボックスの値を取得
+        // チェックボックス・ラジオボタンの値を取得
         const allInputs = document.querySelectorAll('.nl-checkbox-item input');
         allInputs.forEach(input => {
             if (input.checked) {
@@ -730,20 +602,11 @@
             }
         });
 
-        // キーワードを取得
-        const freeWord = document.getElementById('nlFreeWord');
-        if (freeWord && freeWord.value) {
-            params.append('free_word', freeWord.value);
-        }
-
-        // その他の固定パラメータ
-        params.append('narrowing_down[]', '1');
-
         // ページ遷移
         const baseUrl = window.location.origin + window.location.pathname;
         const newUrl = `${baseUrl}?${params.toString()}`;
 
-        console.log('[NEXTLEVEL Filter] 適用URL:', newUrl);
+        console.log('[NEXTLEVEL Filter v2] 適用URL:', newUrl);
         window.location.href = newUrl;
     }
 
@@ -751,22 +614,20 @@
     function resetFilters() {
         const allInputs = document.querySelectorAll('.nl-checkbox-item input');
         allInputs.forEach(input => {
-            input.checked = false;
+            if (input.type === 'checkbox') {
+                input.checked = false;
+            }
         });
 
         // デフォルト値
-        const defaultSort = document.querySelector('.nl-checkbox-item input[name="select_sortby"][value="disp_date"]');
-        if (defaultSort) {
-            defaultSort.checked = true;
-        }
+        const defaultWorkStyle = document.querySelector('.nl-checkbox-item input[name="work_style"][value="0"]');
+        if (defaultWorkStyle) defaultWorkStyle.checked = true;
 
-        const freeWord = document.getElementById('nlFreeWord');
-        if (freeWord) {
-            freeWord.value = '';
-        }
+        const defaultSort = document.querySelector('.nl-checkbox-item input[name="select_sortby"][value="disp_date"]');
+        if (defaultSort) defaultSort.checked = true;
 
         updateDisplay();
-        console.log('[NEXTLEVEL Filter] フィルターをリセットしました');
+        console.log('[NEXTLEVEL Filter v2] フィルターをリセットしました');
     }
 
     // スタイル注入
